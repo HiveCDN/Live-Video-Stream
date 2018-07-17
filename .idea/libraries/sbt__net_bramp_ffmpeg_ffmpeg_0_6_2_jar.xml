@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="sbt: net.bramp.ffmpeg:ffmpeg:0.6.2:jar">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.ivy2/cache/net.bramp.ffmpeg/ffmpeg/jars/ffmpeg-0.6.2.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.ivy2/cache/net.bramp.ffmpeg/ffmpeg/srcs/ffmpeg-0.6.2-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
