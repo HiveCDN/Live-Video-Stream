@@ -3,8 +3,8 @@ import akka.actor.{Actor, ActorLogging, Props}
 import akka.stream.scaladsl.SourceQueueWithComplete
 import akka.util.ByteString
 import akka.stream.{ActorMaterializer, scaladsl}
-
 import java.awt.{Color, Graphics}
+
 import javax.imageio.IIOImage
 import javax.imageio.ImageIO
 import javax.imageio.ImageWriteParam
@@ -15,6 +15,11 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.util
 import java.util.Locale
+import java.util.concurrent.TimeUnit
+
+import akka.http.scaladsl.model.DateTime
+
+import scala.concurrent.duration.FiniteDuration
 
 object SourceActor{
   def props(givenQueue :SourceQueueWithComplete[ByteString] , interval: Int ): Props = Props(new SourceActor(givenQueue,interval))
@@ -26,8 +31,8 @@ class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString] , INTERVAL: 
   var prevImage: ByteString = _
   var startTime: Long = 0
   var timePassed: Long = 0
-  var waitTime: Long = 0
   var offeredImages: Long = 0
+  var onlineUsers: Long = 0
 
   override def preStart(): Unit = {
     super.preStart()
@@ -35,22 +40,25 @@ class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString] , INTERVAL: 
     implicit val materializer: ActorMaterializer = ActorMaterializer()
     prevImage = getImage
     scaladsl.Source.repeat[NotUsed](NotUsed)
-      .map[Unit]( _ =>{
+      .map[Long]( _ =>{
         if( globalStart == 0 ) globalStart = System.currentTimeMillis()
         timePassed = System.currentTimeMillis()-globalStart
+//        log.info("Expected: "+timePassed/INTERVAL)
+//        log.info("Actual: "+offeredImages)
         while( (System.currentTimeMillis()-globalStart)/INTERVAL > offeredImages ){
+//          log.info("RECOVERY")
             sourceQueue offer prevImage
             offeredImages+=1
           }
         prevImage=getImage
         sourceQueue offer prevImage
         offeredImages+=1
-        waitTime = INTERVAL - (System.currentTimeMillis()-globalStart)%INTERVAL
-        startTime = System.currentTimeMillis()
-        while( System.currentTimeMillis() - startTime < waitTime ){
-          System.currentTimeMillis()
-        }
+        INTERVAL - (System.currentTimeMillis()-globalStart)%INTERVAL
       })
+      .flatMapConcat(
+        waitTime =>
+          scaladsl.Source.single[NotUsed](NotUsed).delay(FiniteDuration.apply(waitTime,TimeUnit.MILLISECONDS))
+      )
       .runWith(scaladsl.Sink.ignore)
   }
 
@@ -60,20 +68,27 @@ class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString] , INTERVAL: 
   }
 
   override def receive: Receive = {
+    case update: OnlineUserUpdate =>{
+//      log.info("online user upadate: "+update.value)
+      onlineUsers=update.value
+    }
     case _ => //ignore
   }
 
   def getImage: ByteString = {
     val t: Long = System.currentTimeMillis()-globalStart
-    val img = new BufferedImage(100, 50 , BufferedImage.TYPE_INT_RGB)
+    val WIDTH: Int = 640
+    val HEIGHT: Int = 360
+    val img = new BufferedImage(WIDTH, HEIGHT , BufferedImage.TYPE_INT_RGB)
     val g: Graphics = img.getGraphics
     g.setColor(Color.getHSBColor(
       (t % 10000f) / 10000f,
       0.5f,
       0.25f))
-    g.fillRect(0, 0, 100, 50)
+    g.fillRect(0, 0, WIDTH, HEIGHT)
     g.setColor(Color.WHITE)
-    g.drawString("" + t / 10, 10 , 15)
+    g.drawString( DateTime.now.toRfc1123DateTimeString() , 10 , 15)
+    g.drawString("ONLINE USERS:"+onlineUsers , 10 , 35)
     g.dispose()
     toJpeg(img, 100)
   }
