@@ -16,7 +16,7 @@
 <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
 <script>
     (function(){
-        var url = "http://localhost:1234/video/test.mpd";
+        var url = "/video/test.mpd";
         var player = dashjs.MediaPlayer().create();
         player.initialize(document.querySelector("#videoPlayer"), url, true);
     })();

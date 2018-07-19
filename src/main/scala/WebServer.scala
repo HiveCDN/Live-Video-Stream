@@ -81,7 +81,7 @@ object WebServer extends App {
     }
   }
 
-  Http().bindAndHandle(route,"localhost",1234)
+  Http().bindAndHandle(route,"0.0.0.0",1234)
 
   Await.result(system.whenTerminated, Duration.Inf)
 }
