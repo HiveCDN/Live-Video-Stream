@@ -1,6 +1,7 @@
 import com.typesafe.sbt.packager.docker._
 
 name := "testvideoserver"
+
 scalaVersion := "2.12.6"
 
 libraryDependencies += "com.typesafe.akka" %% "akka-stream" % "2.5.11"
@@ -25,12 +26,11 @@ dockerCommands :=
 version := "1.0"
 dockerUsername := Some("hivecdn")
 dockerCommands += Cmd("USER", "root")
-dockerCommands += ExecCmd("RUN","apt-get","upgrade")
+dockerCommands += ExecCmd("RUN","wget","http://johnvansickle.com/ffmpeg/releases/ffmpeg-release-64bit-static.tar.xz")
 dockerCommands += ExecCmd("RUN","mkdir","/usr/local/bin/ffmpeg")
 dockerCommands += ExecCmd("RUN","mkdir","video")
-dockerCommands += ExecCmd("RUN","wget","http://johnvansickle.com/ffmpeg/releases/ffmpeg-release-64bit-static.tar.xz")
-dockerCommands += ExecCmd("RUN","tar","xf","ffmpeg-release-64bit-static.tar.xz")
-//dockerCommands += ExecCmd("RUN","ls","ffmpeg-4.0.1-64bit-static/")
-dockerCommands += ExecCmd("RUN","mv","*64bit-static/ffmpeg","/usr/local/bin/ffmpeg/")
+dockerCommands += ExecCmd("RUN","mkdir","testfolder")
+dockerCommands += ExecCmd("RUN","tar","xf","ffmpeg-release-64bit-static.tar.xz","-C","testfolder","--strip-components","1")
+dockerCommands += ExecCmd("RUN","mv","testfolder/ffmpeg","/usr/local/bin/ffmpeg/")
 dockerCommands += ExecCmd("RUN","ln","-s","/usr/local/bin/ffmpeg/ffmpeg","/usr/bin/ffmpeg")
 dockerCommands += ExecCmd("RUN","ffmpeg","-version")
