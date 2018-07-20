@@ -3,7 +3,7 @@ import akka.actor.{Actor, ActorLogging, Props}
 import akka.stream.scaladsl.SourceQueueWithComplete
 import akka.util.ByteString
 import akka.stream.{ActorMaterializer, scaladsl}
-import java.awt.{Color, Graphics}
+import java.awt.{Color, Font, Graphics}
 
 import javax.imageio.IIOImage
 import javax.imageio.ImageIO
@@ -77,18 +77,17 @@ class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString] , INTERVAL: 
 
   def getImage: ByteString = {
     val t: Long = System.currentTimeMillis()-globalStart
-    val WIDTH: Int = 640
-    val HEIGHT: Int = 360
+    val WIDTH: Int = 1280
+    val HEIGHT: Int = 720
     val img = new BufferedImage(WIDTH, HEIGHT , BufferedImage.TYPE_INT_RGB)
     val g: Graphics = img.getGraphics
-    g.setColor(Color.getHSBColor(
-      (t % 10000f) / 10000f,
-      0.5f,
-      0.25f))
-    g.fillRect(0, 0, WIDTH, HEIGHT)
     g.setColor(Color.WHITE)
-    g.drawString( DateTime.now.toRfc1123DateTimeString() , 10 , 15)
-    g.drawString("ONLINE USERS:"+onlineUsers , 10 , 35)
+    g.fillRect(0, 0, WIDTH, HEIGHT)
+    g.setColor(Color.BLACK)
+    g.setFont(new Font(Font.DIALOG,Font.BOLD,HEIGHT/20))
+    g.drawString( DateTime.now.toRfc1123DateTimeString() , WIDTH/100 , HEIGHT/20)
+    g.drawString("ONLINE USERS:"+onlineUsers , WIDTH/100 , 2*HEIGHT/20)
+    g.drawString("FRAME:"+offeredImages , WIDTH-12*HEIGHT/20 , HEIGHT-2*HEIGHT/20 )
     g.dispose()
     toJpeg(img, 100)
   }

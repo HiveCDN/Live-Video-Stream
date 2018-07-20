@@ -37,9 +37,7 @@ object WebServer extends App {
     ))
 
   def RIG: String = {
-    val rand= scala.util.Random.alphanumeric.take(8).mkString("")
-    println(rand)
-    rand
+    java.util.UUID.randomUUID().toString
   }
 
   val encoderSupervisorProps: Props = BackoffSupervisor.props(
@@ -53,7 +51,7 @@ object WebServer extends App {
   val SourceRef: ActorRef = system.actorOf(sourceSupervisorProps,"SourceSupervisor")
   system.actorOf(encoderSupervisorProps,"EncoderSupervisor")
   val route: Route = path("") {
-    getFromFile("template/index.html")
+    getFromResource("index.html")
   } ~
   path("stream") {
     get {
