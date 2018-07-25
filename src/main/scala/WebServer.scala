@@ -1,21 +1,20 @@
-import akka.{Done, NotUsed}
-import akka.actor.{ActorRef, ActorSystem, Cancellable, Props}
+import akka.NotUsed
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{HttpCookie, HttpOrigin, Origin, RawHeader}
+import akka.http.scaladsl.model.headers.{HttpCookie, RawHeader}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.pattern.{Backoff, BackoffSupervisor}
 
 import scala.concurrent.duration._
 import akka.stream.scaladsl.{BroadcastHub, Keep, Source, SourceQueueWithComplete}
-import akka.stream.{ActorMaterializer, OverflowStrategy, ThrottleMode, scaladsl}
+import akka.stream.{ActorMaterializer, OverflowStrategy, ThrottleMode}
 import akka.util.ByteString
-import com.typesafe.config.ConfigFactory
 
 import scala.collection.mutable
 import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContextExecutor, Future}
+import scala.concurrent.{Await, ExecutionContextExecutor}
 
 object WebServer extends App with CorsSupport {
   implicit val system: ActorSystem = ActorSystem("clusterSystem")

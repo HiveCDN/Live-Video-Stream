@@ -6,25 +6,17 @@ import akka.stream.{ActorMaterializer, OverflowStrategy, scaladsl}
 import java.awt._
 
 import scala.concurrent.duration._
-import javax.imageio.IIOImage
 import javax.imageio.ImageIO
-import javax.imageio.ImageWriteParam
-import javax.imageio.ImageWriter
-import javax.imageio.plugins.jpeg.JPEGImageWriteParam
 import java.awt.image.BufferedImage
 import java.io._
 import java.net.{HttpURLConnection, URL}
-import java.util
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-import akka.http.scaladsl.model.DateTime
-import com.sun.image.codec.jpeg.{JPEGCodec, JPEGImageEncoder}
+import akka.http.scaladsl.model.DateTime}
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
 import scala.concurrent.duration.FiniteDuration
 import java.util.concurrent.atomic.AtomicLong
-import scala.io.BufferedSource
 
 object SourceActor{
   def props(givenQueue :SourceQueueWithComplete[ByteString]): Props = Props(new SourceActor(givenQueue))
