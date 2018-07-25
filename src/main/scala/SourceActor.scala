@@ -2,64 +2,83 @@ import akka.NotUsed
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.stream.scaladsl.SourceQueueWithComplete
 import akka.util.ByteString
-import akka.stream.{ActorMaterializer, scaladsl}
-import java.awt.{Color, Font, Graphics}
+import akka.stream.{ActorMaterializer, OverflowStrategy, scaladsl}
+import java.awt._
 
+import scala.concurrent.duration._
 import javax.imageio.IIOImage
 import javax.imageio.ImageIO
 import javax.imageio.ImageWriteParam
 import javax.imageio.ImageWriter
 import javax.imageio.plugins.jpeg.JPEGImageWriteParam
 import java.awt.image.BufferedImage
-import java.io.ByteArrayOutputStream
-import java.io.IOException
+import java.io._
+import java.net.{HttpURLConnection, URL}
 import java.util
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model.DateTime
+import com.sun.image.codec.jpeg.{JPEGCodec, JPEGImageEncoder}
 
+import scala.concurrent.{ExecutionContextExecutor, Future}
 import scala.concurrent.duration.FiniteDuration
+import java.util.concurrent.atomic.AtomicLong
+import scala.io.BufferedSource
 
 object SourceActor{
-  def props(givenQueue :SourceQueueWithComplete[ByteString] , interval: Int ): Props = Props(new SourceActor(givenQueue,interval))
+  def props(givenQueue :SourceQueueWithComplete[ByteString]): Props = Props(new SourceActor(givenQueue))
 }
 
-class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString] , INTERVAL: Int) extends Actor with ActorLogging{
+class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString]) extends Actor with ActorLogging{
 
-  var globalStart: Long = 0
-  var prevImage: ByteString = _
-  var startTime: Long = 0
-  var timePassed: Long = 0
-  var offeredImages: Long = 0
+  var frame: AtomicLong = new AtomicLong(0)
   var onlineUsers: Long = 0
+  var logo: BufferedImage = _
+  var startTime: Long = 0
+  var baseImage: BufferedImage = _
+  var FPS: Int = _
+  val WIDTH: Int = 1280
+  val HEIGHT: Int = 720
+  val font: Font = new Font(Font.DIALOG,Font.BOLD,HEIGHT/20)
+  val stroke: Stroke = new BasicStroke(10 )
 
   override def preStart(): Unit = {
     super.preStart()
     log.info("Source actor started!")
+    getLogo
+    prepareBaseImage
+    FPS=ConfigReader.fps
     implicit val materializer: ActorMaterializer = ActorMaterializer()
-    prevImage = getImage
+    implicit val executionContext: ExecutionContextExecutor = context.dispatcher
+    startTime = System.currentTimeMillis()
     scaladsl.Source.repeat[NotUsed](NotUsed)
-      .map[Long]( _ =>{
-        if( globalStart == 0 ) globalStart = System.currentTimeMillis()
-        timePassed = System.currentTimeMillis()-globalStart
-//        log.info("Expected: "+timePassed/INTERVAL)
-//        log.info("Actual: "+offeredImages)
-        while( (System.currentTimeMillis()-globalStart)/INTERVAL > offeredImages ){
-//          log.info("RECOVERY")
-            sourceQueue offer prevImage
-            offeredImages+=1
-          }
-        prevImage=getImage
-        sourceQueue offer prevImage
-        offeredImages+=1
-        INTERVAL - (System.currentTimeMillis()-globalStart)%INTERVAL
-      })
-      .flatMapConcat(
-        waitTime =>
-          scaladsl.Source.single[NotUsed](NotUsed).delay(FiniteDuration.apply(waitTime,TimeUnit.MILLISECONDS))
-      )
+      .map{ _ =>
+        frame.incrementAndGet() }
+      .mapAsync( 8 ){ currentFrame =>
+         Future( getImage(currentFrame) -> currentFrame ) }
+      .buffer( FPS , OverflowStrategy.backpressure )
+      .map{ image =>
+        sourceQueue offer image._1
+        var diff: Long = Math.max(0,(System.currentTimeMillis()-500-startTime)/(1000/FPS)-frame.get())
+        frame.addAndGet(diff)
+        while( diff > 0 ){
+          log.info("RECOVERY")
+          sourceQueue offer image._1
+          diff -= 1
+        }
+        Math.max(startTime+frame.get()*1000/FPS-System.currentTimeMillis()-2000,0)
+      }
+      .flatMapConcat { timeToWait =>
+        scaladsl.Source.single(NotUsed)
+          .delay(FiniteDuration.apply(timeToWait, TimeUnit.MILLISECONDS))
+      }
       .runWith(scaladsl.Sink.ignore)
+    var prevFrame:Long = 0
+    scaladsl.Source.tick(1.second,1.second,NotUsed).map { _ =>
+      log.info("FPS: " + (frame.get() - prevFrame))
+      prevFrame = frame.get()
+    }.runWith(scaladsl.Sink.ignore)
   }
 
   override def postStop(): Unit = {
@@ -75,53 +94,65 @@ class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString] , INTERVAL: 
     case _ => //ignore
   }
 
-  def getImage: ByteString = {
-    val t: Long = System.currentTimeMillis()-globalStart
-    val WIDTH: Int = 1280
-    val HEIGHT: Int = 720
-    val img = new BufferedImage(WIDTH, HEIGHT , BufferedImage.TYPE_INT_RGB)
-    val g: Graphics = img.getGraphics
+  def prepareBaseImage: Unit = {
+    baseImage = new BufferedImage(WIDTH,HEIGHT,BufferedImage.TYPE_INT_RGB)
+    val g: Graphics = baseImage.getGraphics
     g.setColor(Color.WHITE)
     g.fillRect(0, 0, WIDTH, HEIGHT)
+    g.drawImage( logo , WIDTH-325 , 0 , null)
     g.setColor(Color.BLACK)
-    g.setFont(new Font(Font.DIALOG,Font.BOLD,HEIGHT/20))
-    g.drawString( DateTime.now.toRfc1123DateTimeString() , WIDTH/100 , HEIGHT/20)
-    g.drawString("ONLINE USERS:"+onlineUsers , WIDTH/100 , 2*HEIGHT/20)
-    g.drawString("FRAME:"+offeredImages , WIDTH-12*HEIGHT/20 , HEIGHT-2*HEIGHT/20 )
+    g.fillOval(WIDTH/2-HEIGHT/4, HEIGHT/4 , HEIGHT/2 , HEIGHT/2 )
+    g.setColor(Color.WHITE)
+    g.fillOval(WIDTH/2-HEIGHT/4+10, HEIGHT/4+10 , HEIGHT/2-20 , HEIGHT/2-20 )
     g.dispose()
+  }
+
+  def getLogo: Boolean = {
+    try{
+      val url: URL = new URL("https://hivecdn.com/assets/images/hivecdn-logo.png")
+      val connection: HttpURLConnection = url.openConnection().asInstanceOf[HttpURLConnection]
+      connection.setRequestMethod("GET")
+      val in: InputStream = connection.getInputStream
+      val out = new BufferedOutputStream(new FileOutputStream("logo.png"))
+      val byteArray: Array[Byte] = Stream.continually(in.read).takeWhile(-1 !=).map(_.toByte).toArray
+      out.write(byteArray)
+      in.close()
+      out.close()
+      logo = ImageIO.read(new File("logo.png"))
+      true
+    }catch {
+      case _:Exception => false
+    }
+  }
+
+
+  def getImage(currentFrame: Long): ByteString = {
+//    log.info("GETIMAGE")
+    val img = new BufferedImage(baseImage.getColorModel,baseImage.copyData(null),baseImage.getColorModel.isAlphaPremultiplied,null)
+    val g: Graphics = img.getGraphics
+    g.setColor(Color.BLACK)
+    g.setFont(font)
+    g.drawString( DateTime.apply(startTime+currentFrame*1000/FPS).toRfc1123DateTimeString() , WIDTH/100 , HEIGHT/20)
+    g.drawString("ONLINE USERS:"+onlineUsers , WIDTH/100 , 3*HEIGHT/20)
+    g.drawString("FRAME:"+currentFrame , WIDTH-12*HEIGHT/20 , HEIGHT-2*HEIGHT/20 )
+    val g2 = g.asInstanceOf[Graphics2D]
+    g2.setStroke(stroke)
+    g2.drawLine(WIDTH/2,HEIGHT/2,WIDTH/2+((HEIGHT/4-10) * Math.sin((360.0-(currentFrame%(FPS*5))*360.0/(FPS*5))*Math.PI/180)).asInstanceOf[Int] , HEIGHT/2+( (HEIGHT/4-10) * Math.cos((360.0-(currentFrame%(FPS*5))*360.0/(FPS*5))*Math.PI/180)).asInstanceOf[Int] )
+    g.dispose()
+    g2.dispose()
     toJpeg(img, 100)
   }
 
   private val NL = "\r\n"
-  private val BOUNDARY = "--boundary"
+  private val BOUNDARY = "--7b3cc56e5f51db803f790dad720ed50a"
   private val HEAD = NL + NL + BOUNDARY + NL + "Content-Type: image/jpeg" + NL + "Content-Length: "
 
   private def toJpeg(image: BufferedImage, qualityPercent: Int) : ByteString = {
-    if ((qualityPercent < 0) || (qualityPercent > 100)) throw new IllegalArgumentException("Quality out of bounds!")
-    val quality = qualityPercent / 100f
-    var writer: ImageWriter = null
-    val iter: util.Iterator[ImageWriter] = ImageIO.getImageWritersByFormatName("jpg")
-    if (iter.hasNext) writer = iter.next
-    val stream = new ByteArrayOutputStream
-    try {
-      val ios = ImageIO.createImageOutputStream(stream)
-      writer.setOutput(ios)
-      val iwparam = new JPEGImageWriteParam(Locale.getDefault)
-      iwparam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT)
-      iwparam.setCompressionQuality(quality)
-      writer.write(null, new IIOImage(image, null, null), iwparam)
-      ios.flush()
-      writer.dispose()
-      ios.close()
-      val BA: Array[Byte] = stream.toByteArray
-      val headers: Array[Byte] = (HEAD+BA.length+NL+NL).getBytes
-      val out=ByteString.fromArray(headers++BA)
-      stream.close()
-      out
-    } catch {
-      case e: IOException =>
-        e.printStackTrace()
-        null
-    }
+    val stream: ByteArrayOutputStream = new ByteArrayOutputStream
+    val encoder: JPEGImageEncoder = JPEGCodec.createJPEGEncoder(stream)
+    encoder.encode(image)
+    val BA: Array[Byte] = stream.toByteArray
+    val headers: Array[Byte] = (HEAD + BA.length + NL + NL).getBytes
+    ByteString.fromArray(headers ++ BA)
   }
 }
