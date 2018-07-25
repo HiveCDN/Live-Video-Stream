@@ -12,7 +12,7 @@ import java.io._
 import java.net.{HttpURLConnection, URL}
 import java.util.concurrent.TimeUnit
 
-import akka.http.scaladsl.model.DateTime}
+import akka.http.scaladsl.model.DateTime
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
 import scala.concurrent.duration.FiniteDuration
