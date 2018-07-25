@@ -26,7 +26,9 @@ object WebServer extends App with CorsSupport {
     .queue[ByteString](200  ,OverflowStrategy.dropHead)
     .preMaterialize()
   ConfigReader.initialize
-  val imgSource: Source[ByteString, NotUsed] = source.throttle(ConfigReader.fps,1.second,ConfigReader.fps,ThrottleMode.shaping).toMat(BroadcastHub.sink)(Keep.right).run()
+  val imgSource: Source[ByteString, NotUsed] = source
+    .throttle(ConfigReader.fps,1.second,ConfigReader.fps,ThrottleMode.shaping)
+    .toMat(BroadcastHub.sink)(Keep.right).run().buffer(10, OverflowStrategy.dropHead)
   val boundaryMediaType = new MediaType.Multipart("x-mixed-replace", Map( "boundary" -> "--7b3cc56e5f51db803f790dad720ed50a" ) )
   val sourceSupervisorProps: Props = BackoffSupervisor.props(
     Backoff.onStop(
