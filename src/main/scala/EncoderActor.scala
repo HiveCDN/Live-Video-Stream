@@ -41,12 +41,12 @@ class EncoderActor extends Actor with ActorLogging{
         s"-g ${ConfigReader.fps * 2} " +
         s"-filter:v:1 scale=" +
         s"-2:480 " +
-        s"-profile:v:1 main " +
+        s"-profile:v:1 baseline " +
         s"-b:v:2 1500k " +
         s"-g ${ConfigReader.fps * 2} " +
         s"-filter:v:2 scale=" +
         s"-2:720 " +
-        s"-profile:v:2 high " + //change this
+        s"-profile:v:2 baseline " + //change this
         s"-f dash " +
         s"-use_timeline 1 " +
         s"-use_template 1 " +
