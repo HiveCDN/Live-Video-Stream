@@ -149,8 +149,7 @@ class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString]) extends Act
 
   private def toJpeg(image: BufferedImage, qualityPercent: Int) : ByteString = {
     val stream: ByteArrayOutputStream = new ByteArrayOutputStream
-    val encoder: JPEGImageEncoder = JPEGCodec.createJPEGEncoder(stream)
-    encoder.encode(image)
+    ImageIO.write( image,"jpg",stream)
     val BA: Array[Byte] = stream.toByteArray
     val headers: Array[Byte] = (HEAD + BA.length + NL + NL).getBytes
     ByteString.fromArray(headers ++ BA)
