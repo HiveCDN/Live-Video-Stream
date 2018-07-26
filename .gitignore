@@ -26,6 +26,7 @@ project/plugins/project/
 .idea/**/tasks.xml
 .idea/**/dictionaries
 .idea/**/shelf
+.idea/workspace.xml
 
 # Sensitive or high-churn files
 .idea/**/dataSources/
