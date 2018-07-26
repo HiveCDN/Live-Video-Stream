@@ -1,5 +1,7 @@
 package hivecdn.liveVideoStream
 
+import java.io.File
+
 import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
@@ -11,7 +13,7 @@ import akka.pattern.{Backoff, BackoffSupervisor}
 
 import scala.concurrent.duration._
 import akka.stream.scaladsl.{BroadcastHub, Keep, Source, SourceQueueWithComplete}
-import akka.stream.{ActorMaterializer, OverflowStrategy, ThrottleMode}
+import akka.stream.{ActorMaterializer, OverflowStrategy, ThrottleMode, scaladsl}
 import akka.util.ByteString
 
 import scala.collection.mutable
@@ -19,7 +21,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContextExecutor}
 
 object WebServer extends App with CorsSupport {
-  implicit val system: ActorSystem = ActorSystem("clusterSystem")
+  implicit val system: ActorSystem = ActorSystem("liveVideoStream")
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val executionContext: ExecutionContextExecutor = system.dispatcher
   val MyMap: mutable.Map[String, String] = mutable.HashMap.empty[String,String]
@@ -51,7 +53,8 @@ object WebServer extends App with CorsSupport {
       5.seconds,
       randomFactor = 0.2
     ))
-  val SourceRef: ActorRef = system.actorOf(sourceSupervisorProps,"SourceSupervisor")
+  val sourceRef: ActorRef = system.actorOf(sourceSupervisorProps,"SourceSupervisor")
+  val baseFile: String = new File(ConfigReader.dir).getCanonicalPath
   val route: Route = path("") {
     getFromResource("index.html")
   } ~
@@ -62,22 +65,27 @@ object WebServer extends App with CorsSupport {
       }
     }
   } ~
-  path("video" / Segment ){ name =>
-    val returnRoute: Route = getFromFile(s"video/$name")
-    optionalCookie("DASHUID"){
-      case Some(id) =>
-        val cur = System.currentTimeMillis()
-        MyMap += ( id.value -> cur.toString )
-        MyMap.foreach{ pair =>
-          if(cur-pair._2.toLong > 5000)
-            MyMap.remove(pair._1)
-        }
-        SourceRef ! OnlineUserUpdate(MyMap.size)
-        returnRoute
-      case None =>
-        setCookie(HttpCookie("DASHUID",RIG)){
+  path( "video" / Segment ){ name =>
+    val file = new File(s"${ConfigReader.dir}/$name")
+    if( !file.getCanonicalPath.startsWith(baseFile) ){
+      complete(StatusCodes.BadGateway)
+    }else {
+      val returnRoute: Route = getFromFile(file)
+      optionalCookie("DASHUID") {
+        case Some(id) =>
+          val cur = System.currentTimeMillis()
+          MyMap += (id.value -> cur.toString)
+          MyMap.foreach { pair =>
+            if (cur - pair._2.toLong > 5000)
+              MyMap.remove(pair._1)
+          }
+          sourceRef ! OnlineUserUpdate(MyMap.size)
           returnRoute
-        }
+        case None =>
+          setCookie(HttpCookie("DASHUID", RIG)) {
+            returnRoute
+          }
+      }
     }
   } ~ path( "mjpeg" ){
     get {
@@ -85,7 +93,8 @@ object WebServer extends App with CorsSupport {
     }
   }
 
-  Http().bindAndHandle(corsHandler(route),"0.0.0.0",1234)
-  system.actorOf(encoderSupervisorProps,"EncoderSupervisor")
+  Http().bindAndHandle(corsHandler(route),"0.0.0.0",ConfigReader.port)
+  val encoderRef:ActorRef = system.actorOf(encoderSupervisorProps,"EncoderSupervisor")
+  scaladsl.Source.tick(24.hours,24.hours,NotUsed).map(_ => encoderRef ! RestartMessage ).runWith(scaladsl.Sink.ignore)
   Await.result(system.whenTerminated, Duration.Inf)
 }

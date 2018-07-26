@@ -8,6 +8,10 @@ import akka.stream.{ActorMaterializer, scaladsl}
 
 import scala.concurrent.duration._
 import sys.process._
+import java.io.File
+
+import org.apache.commons.io.FileUtils
+
 
 object EncoderActor {
   def props: Props = Props(new EncoderActor)
@@ -19,14 +23,20 @@ class EncoderActor extends Actor with ActorLogging{
 
   override def preStart(): Unit = {
     super.preStart()
+    val videoDirectory: File =new File(ConfigReader.dir)
+    if( !videoDirectory.exists() ){
+      videoDirectory.mkdir()
+      videoDirectory.deleteOnExit()
+    }
+    FileUtils.cleanDirectory(videoDirectory)
     log.info("Encoder Actor started!")
     var command: String = ""
     if( ConfigReader.level != 1 ) {
       command = s"ffmpeg " +
-        s"-threads 4 " +
+        s"-threads ${ConfigReader.cores} " +
         s"-y " +
         s"-re " +
-        s"-i http://localhost:1234/stream.mjpg " +
+        s"-i http://localhost:${ConfigReader.port}/stream.mjpg " +
         s"-an " +
         s"-sn " +
         s"-vf yadif=0 " +
@@ -62,10 +72,10 @@ class EncoderActor extends Actor with ActorLogging{
         s"-use_template 1 " +
         s"-adaptation_sets id=0,streams=v " +
         s"-min_seg_duration 2000000 " +
-        s"-remove_at_exit 1 video/test.mpd"
+        s"${ConfigReader.dir}/manifest.mpd"
     }else{
-      command = s"ffmpeg -re -i http://localhost:1234/stream.mjpg -an -sn -vf yadif=0 -c:v libx264 " +
-        s"-threads 4 " +
+      command = s"ffmpeg -re -i http://localhost:${ConfigReader.port}/stream.mjpg -an -sn -vf yadif=0 -c:v libx264 " +
+        s"-threads ${ConfigReader.cores} " +
         s"-x264opts keyint=${ConfigReader.fps}:min" +
         s"-keyint=${ConfigReader.fps}:no" +
         s"-scenecut " +
@@ -75,7 +85,7 @@ class EncoderActor extends Actor with ActorLogging{
         s"-use_timeline 1 " +
         s"-use_template 1 " +
         s"-min_seg_duration 2000000 " +
-        s"-remove_at_exit 1 video/test.mpd"
+        s"${ConfigReader.dir}/manifest.mpd"
     }
     log.info(command)
 //    Process(command).lineStream
@@ -86,13 +96,13 @@ class EncoderActor extends Actor with ActorLogging{
     var deleteCommand: String = ""
     val chunkDeleteEveryXMinute: Long = 1
     val chunkDeleteRange:Int = 60*chunkDeleteEveryXMinute.toInt/2 - 1
-    log.info("CREATING GARBAGE COLLECTOR")
+//    log.info("CREATING GARBAGE COLLECTOR")
     scaladsl.Source.tick(FiniteDuration.apply(chunkDeleteEveryXMinute*2,TimeUnit.MINUTES),FiniteDuration.apply(chunkDeleteEveryXMinute,TimeUnit.MINUTES),NotUsed).map { _ =>
-      log.info("DELETE TICK")
+//      log.info("DELETE TICK")
       for( representationId <- 0 until ConfigReader.level )
         for (chunkIterator <- deleteChunkNum to deleteChunkNum + chunkDeleteRange) {
           deleteCommand = "rm video/chunk-stream"+representationId+"-"+"%05d".format(chunkIterator)+".m4s"
-          log.info(deleteCommand)
+//          log.info(deleteCommand)
           Process(deleteCommand).run( ProcessLogger( _ => () ) )
         }
       deleteChunkNum+=chunkDeleteRange+1
@@ -101,8 +111,13 @@ class EncoderActor extends Actor with ActorLogging{
 
   override def receive: Receive = {
     case RestartMessage =>
+      log.info("Restart Initialized")
       ffmpegProcess.destroy()
       throw new Exception
+  }
+
+  override def postStop(): Unit = {
+    super.postStop()
   }
 }
 

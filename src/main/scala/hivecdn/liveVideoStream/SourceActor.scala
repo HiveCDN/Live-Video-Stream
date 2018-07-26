@@ -48,7 +48,7 @@ class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString]) extends Act
     scaladsl.Source.repeat[NotUsed](NotUsed)
       .map{ _ =>
         frame.incrementAndGet() }
-      .mapAsync( 2 ){ currentFrame =>
+      .mapAsync( ConfigReader.cores ){ currentFrame =>
          Future( getImage(currentFrame) -> currentFrame ) }
       .buffer( FPS , OverflowStrategy.backpressure )
       .map{ image =>
@@ -127,7 +127,7 @@ class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString]) extends Act
     g.setFont(font)
     g.drawString( DateTime.apply(startTime+currentFrame*1000/FPS).toRfc1123DateTimeString() , WIDTH/100 , HEIGHT/20)
     g.drawString("ONLINE USERS:"+onlineUsers , WIDTH/100 , 3*HEIGHT/20)
-    g.drawString("FRAME:"+currentFrame , WIDTH-12*HEIGHT/20 , HEIGHT-2*HEIGHT/20 )
+    g.drawString("FRAME:"+currentFrame , WIDTH/100 , HEIGHT-HEIGHT/20 )
     val g2 = g.asInstanceOf[Graphics2D]
     g2.setStroke(stroke)
     g2.drawLine(WIDTH/2,HEIGHT/2,WIDTH/2+((HEIGHT/4-10) * Math.sin((360.0-(currentFrame%(FPS*5))*360.0/(FPS*5))*Math.PI/180)).asInstanceOf[Int] , HEIGHT/2+( (HEIGHT/4-10) * Math.cos((360.0-(currentFrame%(FPS*5))*360.0/(FPS*5))*Math.PI/180)).asInstanceOf[Int] )
