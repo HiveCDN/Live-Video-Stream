@@ -1,3 +1,5 @@
+package hivecdn.liveVideoStream
+
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.{StatusCodes, HttpResponse}
 import akka.http.scaladsl.model.headers._

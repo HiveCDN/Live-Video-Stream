@@ -1,3 +1,5 @@
+package hivecdn.liveVideoStream
+
 import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
@@ -24,7 +26,6 @@ object WebServer extends App with CorsSupport {
   val (queue,source): (SourceQueueWithComplete[ByteString], Source[ByteString, NotUsed]) = Source
     .queue[ByteString](200  ,OverflowStrategy.dropHead)
     .preMaterialize()
-  ConfigReader.initialize
   val imgSource: Source[ByteString, NotUsed] = source
     .throttle(ConfigReader.fps,1.second,ConfigReader.fps,ThrottleMode.shaping)
     .toMat(BroadcastHub.sink)(Keep.right).run().buffer(10, OverflowStrategy.dropHead)

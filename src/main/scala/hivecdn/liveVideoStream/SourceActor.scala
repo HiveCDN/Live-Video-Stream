@@ -1,3 +1,4 @@
+package hivecdn.liveVideoStream
 import akka.NotUsed
 import akka.actor.{Actor, ActorLogging, Props}
 import akka.stream.scaladsl.SourceQueueWithComplete
