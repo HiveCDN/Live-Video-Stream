@@ -47,7 +47,7 @@ class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString]) extends Act
     scaladsl.Source.repeat[NotUsed](NotUsed)
       .map{ _ =>
         frame.incrementAndGet() }
-      .mapAsync( 8 ){ currentFrame =>
+      .mapAsync( 2 ){ currentFrame =>
          Future( getImage(currentFrame) -> currentFrame ) }
       .buffer( FPS , OverflowStrategy.backpressure )
       .map{ image =>
@@ -132,17 +132,18 @@ class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString]) extends Act
     g2.drawLine(WIDTH/2,HEIGHT/2,WIDTH/2+((HEIGHT/4-10) * Math.sin((360.0-(currentFrame%(FPS*5))*360.0/(FPS*5))*Math.PI/180)).asInstanceOf[Int] , HEIGHT/2+( (HEIGHT/4-10) * Math.cos((360.0-(currentFrame%(FPS*5))*360.0/(FPS*5))*Math.PI/180)).asInstanceOf[Int] )
     g.dispose()
     g2.dispose()
-    toJpeg(img, 100)
+    toJpeg(img)
   }
 
   private val NL = "\r\n"
   private val BOUNDARY = "--7b3cc56e5f51db803f790dad720ed50a"
   private val HEAD = NL + NL + BOUNDARY + NL + "Content-Type: image/jpeg" + NL + "Content-Length: "
 
-  private def toJpeg(image: BufferedImage, qualityPercent: Int) : ByteString = {
+  private def toJpeg(image: BufferedImage) : ByteString = {
     val stream: ByteArrayOutputStream = new ByteArrayOutputStream
     ImageIO.write( image,"jpg",stream)
     val BA: Array[Byte] = stream.toByteArray
+    stream.close()
     val headers: Array[Byte] = (HEAD + BA.length + NL + NL).getBytes
     ByteString.fromArray(headers ++ BA)
   }

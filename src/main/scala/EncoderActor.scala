@@ -1,4 +1,10 @@
+import java.util.concurrent.TimeUnit
+
+import akka.NotUsed
 import akka.actor.{Actor, ActorLogging, Props}
+import akka.stream.{ActorMaterializer, scaladsl}
+
+import scala.concurrent.duration._
 import sys.process._
 
 object EncoderActor {
@@ -6,6 +12,8 @@ object EncoderActor {
 }
 
 class EncoderActor extends Actor with ActorLogging{
+
+  var ffmpegProcess: Process = _
 
   override def preStart(): Unit = {
     super.preStart()
@@ -67,17 +75,32 @@ class EncoderActor extends Actor with ActorLogging{
         s"-min_seg_duration 2000000 " +
         s"-remove_at_exit 1 video/test.mpd"
     }
-//    val command: String = "which ffmpeg"
     log.info(command)
-    val y: Seq[String] = Process(command).lineStream
-    y.foreach( msg => println(msg))
-//    val x: Process = Process(command).run( ProcessLogger(_ => () ) )
-//    if( x.exitValue() == 1 ) throw new Exception
-
+//    Process(command).lineStream
+    ffmpegProcess = Process(command).run( ProcessLogger( _ => () ) )
+    log.info("ENCODER STARTED!!!!")
+    implicit val materializer: ActorMaterializer = ActorMaterializer()
+    var deleteChunkNum:Int = 1
+    var deleteCommand: String = ""
+    val chunkDeleteEveryXMinute: Long = 1
+    val chunkDeleteRange:Int = 60*chunkDeleteEveryXMinute.toInt/2 - 1
+    log.info("CREATING GARBAGE COLLECTOR")
+    scaladsl.Source.tick(FiniteDuration.apply(chunkDeleteEveryXMinute*2,TimeUnit.MINUTES),FiniteDuration.apply(chunkDeleteEveryXMinute,TimeUnit.MINUTES),NotUsed).map { _ =>
+      log.info("DELETE TICK")
+      for( representationId <- 0 until ConfigReader.level )
+        for (chunkIterator <- deleteChunkNum to deleteChunkNum + chunkDeleteRange) {
+          deleteCommand = "rm video/chunk-stream"+representationId+"-"+"%05d".format(chunkIterator)+".m4s"
+          log.info(deleteCommand)
+          Process(deleteCommand).run( ProcessLogger( _ => () ) )
+        }
+      deleteChunkNum+=chunkDeleteRange+1
+    }.runWith(scaladsl.Sink.ignore)
   }
 
   override def receive: Receive = {
-    case _ => //ignore
+    case RestartMessage =>
+      ffmpegProcess.destroy()
+      throw new Exception
   }
 }
 

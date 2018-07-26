@@ -51,7 +51,6 @@ object WebServer extends App with CorsSupport {
       randomFactor = 0.2
     ))
   val SourceRef: ActorRef = system.actorOf(sourceSupervisorProps,"SourceSupervisor")
-  system.actorOf(encoderSupervisorProps,"EncoderSupervisor")
   val route: Route = path("") {
     getFromResource("index.html")
   } ~
@@ -86,6 +85,6 @@ object WebServer extends App with CorsSupport {
   }
 
   Http().bindAndHandle(corsHandler(route),"0.0.0.0",1234)
-
+  system.actorOf(encoderSupervisorProps,"EncoderSupervisor")
   Await.result(system.whenTerminated, Duration.Inf)
 }

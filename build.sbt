@@ -1,7 +1,6 @@
 import com.typesafe.sbt.packager.docker._
 
 name := "testvideoserver"
-
 scalaVersion := "2.12.6"
 
 libraryDependencies += "com.typesafe.akka" %% "akka-stream" % "2.5.11"
@@ -13,6 +12,10 @@ libraryDependencies += "org.slf4j" % "slf4j-api" % "1.7.25"
 libraryDependencies += "com.typesafe.akka" %% "akka-slf4j" % "2.5.13"
 
 enablePlugins(JavaServerAppPackaging)
+
+//javaOptions in Universal ++= Seq(
+//
+//)
 
 dockerEntrypoint ++= Seq(
   """-Dakka.remote.netty.tcp.hostname="$(eval "echo $AKKA_REMOTING_BIND_HOST")"""",
