@@ -120,7 +120,6 @@ class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString]) extends Act
 
 
   def getImage(currentFrame: Long): ByteString = {
-//    log.info("GETIMAGE")
     val img = new BufferedImage(baseImage.getColorModel,baseImage.copyData(null),baseImage.getColorModel.isAlphaPremultiplied,null)
     val g: Graphics = img.getGraphics
     g.setColor(Color.BLACK)
@@ -143,6 +142,10 @@ class SourceActor( sourceQueue: SourceQueueWithComplete[ByteString]) extends Act
   private def toJpeg(image: BufferedImage) : ByteString = {
     val stream: ByteArrayOutputStream = new ByteArrayOutputStream
     ImageIO.write( image,"jpg",stream)
+//    import com.sun.image.codec.jpeg.JPEGCodec
+//    import com.sun.image.codec.jpeg.JPEGImageEncoder
+//    val encoder: JPEGImageEncoder = JPEGCodec.createJPEGEncoder(stream)
+//    encoder.encode(image)
     val BA: Array[Byte] = stream.toByteArray
     stream.close()
     val headers: Array[Byte] = (HEAD + BA.length + NL + NL).getBytes

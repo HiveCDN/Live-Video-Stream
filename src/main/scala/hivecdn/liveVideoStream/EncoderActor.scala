@@ -68,22 +68,41 @@ class EncoderActor extends Actor with ActorLogging{
         s"-2:720 " +
         s"-profile:v:2 baseline " + //change this
         s"-f dash " +
+        s"-hls_playlist 1 " +
         s"-use_timeline 1 " +
         s"-use_template 1 " +
         s"-adaptation_sets id=0,streams=v " +
         s"-min_seg_duration 2000000 " +
         s"${ConfigReader.dir}/manifest.mpd"
     }else{
-      command = s"ffmpeg -re -i http://localhost:${ConfigReader.port}/stream.mjpg -an -sn -vf yadif=0 -c:v libx264 " +
+      command = s"ffmpeg " +
         s"-threads ${ConfigReader.cores} " +
+        s"-y " +
+        s"-re " +
+        s"-i http://localhost:${ConfigReader.port}/stream.mjpg " +
+        s"-an " +
+        s"-sn " +
+        s"-vf yadif=0 " +
+        s"-c:v libx264 " +
         s"-x264opts keyint=${ConfigReader.fps}:min" +
         s"-keyint=${ConfigReader.fps}:no" +
         s"-scenecut " +
         s"-r ${ConfigReader.fps} " +
-        s"-g ${ConfigReader.fps*2} " +
+        s"-bf 1 " +
+        s"-b_strategy 0 " +
+        s"-sc_threshold 0 " +
+        s"-pix_fmt yuv420p " +
+        s"-map 0:v:0 " +
+        s"-b:v:0 1500k " +
+        s"-g ${ConfigReader.fps * 2} " +
+        s"-filter:v:0 scale=" +
+        s"-2:720 " +
+        s"-profile:v:0 baseline " +
         s"-f dash " +
+        s"-hls_playlist 1 " +
         s"-use_timeline 1 " +
         s"-use_template 1 " +
+        s"-adaptation_sets id=0,streams=v " +
         s"-min_seg_duration 2000000 " +
         s"${ConfigReader.dir}/manifest.mpd"
     }
@@ -101,7 +120,7 @@ class EncoderActor extends Actor with ActorLogging{
 //      log.info("DELETE TICK")
       for( representationId <- 0 until ConfigReader.level )
         for (chunkIterator <- deleteChunkNum to deleteChunkNum + chunkDeleteRange) {
-          deleteCommand = "rm video/chunk-stream"+representationId+"-"+"%05d".format(chunkIterator)+".m4s"
+          deleteCommand = s"rm ${ConfigReader.dir}/chunk-stream"+representationId+"-"+"%05d".format(chunkIterator)+".m4s"
 //          log.info(deleteCommand)
           Process(deleteCommand).run( ProcessLogger( _ => () ) )
         }

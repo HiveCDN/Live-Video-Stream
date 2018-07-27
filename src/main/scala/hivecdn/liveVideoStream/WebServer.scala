@@ -71,18 +71,18 @@ object WebServer extends App with CorsSupport {
       complete(StatusCodes.BadGateway)
     }else {
       val returnRoute: Route = getFromFile(file)
+      val cur = System.currentTimeMillis()
+      MyMap.foreach { pair =>
+        if (cur - pair._2.toLong > 5000)
+          MyMap.remove(pair._1)
+      }
+      sourceRef ! OnlineUserUpdate(MyMap.size)
       optionalCookie("DASHUID") {
         case Some(id) =>
-          val cur = System.currentTimeMillis()
           MyMap += (id.value -> cur.toString)
-          MyMap.foreach { pair =>
-            if (cur - pair._2.toLong > 5000)
-              MyMap.remove(pair._1)
-          }
-          sourceRef ! OnlineUserUpdate(MyMap.size)
           returnRoute
         case None =>
-          setCookie(HttpCookie("DASHUID", RIG)) {
+          setCookie(HttpCookie("DASHUID", RIG , Some(DateTime.apply(cur+1000*60*60*24)))) {
             returnRoute
           }
       }
