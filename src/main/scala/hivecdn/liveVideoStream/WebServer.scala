@@ -82,7 +82,7 @@ object WebServer extends App with CorsSupport {
           MyMap += (id.value -> cur.toString)
           returnRoute
         case None =>
-          setCookie(HttpCookie("DASHUID", RIG , Some(DateTime.apply(cur+1000*60*60*24)))) {
+          setCookie(HttpCookie("DASHUID", RIG , Some(DateTime.apply(cur+1000*60*60)))) {
             returnRoute
           }
       }
