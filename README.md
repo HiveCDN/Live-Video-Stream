@@ -48,4 +48,9 @@ finally open your favorite web browser and type
 
 
 ## Main Flow Diagram
+
 <img src="https://github.com/eminayar/Live-Video-Stream/blob/master/diagram.png">
+
+## Detailed Diagram
+
+<img src="https://github.com/eminayar/Live-Video-Stream/blob/master/Detailed_diagram.png">
